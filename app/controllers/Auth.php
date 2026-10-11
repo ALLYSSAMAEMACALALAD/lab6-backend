@@ -1,6 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
-
+ 
 /**
  * Auth - login / refresh / logout / me using the LavaLust API library (JWT).
  */
@@ -11,88 +11,66 @@ class Auth extends Controller
         parent::__construct();
         $this->call->library(['api', 'database']);
     }
-
+ 
     /** CORS preflight - the API library answers OPTIONS in its constructor. */
     public function preflight()
     {
         $this->api->respond(null, 204);
     }
-
+ 
     /** POST /api/login  { "username": "...", "password": "..." } */
-   
-public function login()
-{
-    $this->api->require_method('POST');
-    $this->api->rate_limit(null, 10, 60);
-
-    $input = $this->api->body();
-
-    $username = trim((string) ($input['username'] ?? ''));
-    $password = (string) ($input['password'] ?? '');
-
-    // Validate required fields
-    if ($username === '' || $password === '') {
-        $this->api->respond_error(
-            'Username and password are required',
-            422
+    public function login()
+    {
+        $this->api->require_method('POST');
+        $this->api->rate_limit(null, 10, 60); // 10 login attempts / minute / IP
+        $input = $this->api->body();
+ 
+        $username = trim($input['username'] ?? '');
+        $password = (string) ($input['password'] ?? '');
+        if ($username === '' || $password === '') {
+            $this->api->respond_error('Username and password are required', 422);
+        }
+ 
+        $stmt = $this->db->raw(
+            'SELECT id, username, email, password, role, is_active FROM users WHERE username = ? LIMIT 1',
+            [$username]
         );
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+ 
+        if (!$user || !$user['is_active'] || !password_verify($password, $user['password'])) {
+            $this->api->respond_error('Invalid username or password', 401);
+        }
+ 
+        $tokens = $this->api->issue_tokens([
+            'id'   => $user['id'],
+            'role' => $user['role'],
+        ]);
+ 
+        $this->api->respond([
+            'message' => 'Login successful',
+            'user'    => [
+                'id'       => (int) $user['id'],
+                'username' => $user['username'],
+                'email'    => $user['email'],
+                'role'     => $user['role'],
+            ],
+            'tokens'  => $tokens,
+            // Same tokens at the top level too, so simple clients (like the LavaLust API Tester) can read them
+            'access_token'  => $tokens['access_token'],
+            'refresh_token' => $tokens['refresh_token'],
+            'expires_in'    => $tokens['expires_in'],
+            'token_type'    => $tokens['token_type'],
+        ]);
     }
-
-    // Find the user in the database
-    $stmt = $this->db->raw(
-        'SELECT id, username, email, password, role, is_active
-         FROM users
-         WHERE username = ?
-         LIMIT 1',
-        [$username]
-    );
-
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Validate the account and password
-    if (
-        !$user ||
-        (int) $user['is_active'] !== 1 ||
-        !password_verify($password, $user['password'])
-    ) {
-        $this->api->respond_error(
-            'Invalid username or password',
-            401
-        );
+ 
+    /** POST /api/refresh  { "refresh_token": "..." } */
+    public function refresh()
+    {
+        $this->api->require_method('POST');
+        $input = $this->api->body();
+        $this->api->refresh_access_token($input['refresh_token'] ?? '');
     }
-
-    // Generate access and refresh tokens
-    $tokens = $this->api->issue_tokens([
-        'id'   => (int) $user['id'],
-        'role' => $user['role'],
-    ]);
-
-    // Return successful login response
-    $this->api->respond([
-        'message' => 'Login successful',
-        'user'    => [
-            'id'       => (int) $user['id'],
-            'username' => $user['username'],
-            'email'    => $user['email'],
-            'role'     => $user['role'],
-        ],
-        'tokens'  => $tokens,
-    ]);
-}
-
-/** POST /api/refresh { "refresh_token": "..." } */
-public function refresh()
-{
-    $this->api->require_method('POST');
-
-    $input = $this->api->body();
-
-    $this->api->refresh_access_token(
-        $input['refresh_token'] ?? ''
-    );
-}
-
-
+ 
     /** POST /api/logout  { "refresh_token": "..." }  (needs a valid access token) */
     public function logout()
     {
@@ -104,7 +82,7 @@ public function refresh()
         }
         $this->api->respond(['message' => 'Logged out']);
     }
-
+ 
     /** GET /api/me */
     public function me()
     {
@@ -118,3 +96,4 @@ public function refresh()
         $user ? $this->api->respond($user) : $this->api->respond_error('User not found', 404);
     }
 }
+ 
