@@ -1,6 +1,6 @@
 <?php
 defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
- 
+
 /**
  * Auth - login / refresh / logout / me using the LavaLust API library (JWT).
  */
@@ -11,41 +11,41 @@ class Auth extends Controller
         parent::__construct();
         $this->call->library(['api', 'database']);
     }
- 
+
     /** CORS preflight - the API library answers OPTIONS in its constructor. */
     public function preflight()
     {
         $this->api->respond(null, 204);
     }
- 
+
     /** POST /api/login  { "username": "...", "password": "..." } */
     public function login()
     {
         $this->api->require_method('POST');
         $this->api->rate_limit(null, 10, 60); // 10 login attempts / minute / IP
         $input = $this->api->body();
- 
+
         $username = trim($input['username'] ?? '');
         $password = (string) ($input['password'] ?? '');
         if ($username === '' || $password === '') {
             $this->api->respond_error('Username and password are required', 422);
         }
- 
+
         $stmt = $this->db->raw(
             'SELECT id, username, email, password, role, is_active FROM users WHERE username = ? LIMIT 1',
             [$username]
         );
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
- 
+
         if (!$user || !$user['is_active'] || !password_verify($password, $user['password'])) {
             $this->api->respond_error('Invalid username or password', 401);
         }
- 
+
         $tokens = $this->api->issue_tokens([
             'id'   => $user['id'],
             'role' => $user['role'],
         ]);
- 
+
         $this->api->respond([
             'message' => 'Login successful',
             'user'    => [
@@ -62,7 +62,7 @@ class Auth extends Controller
             'token_type'    => $tokens['token_type'],
         ]);
     }
- 
+
     /** POST /api/refresh  { "refresh_token": "..." } */
     public function refresh()
     {
@@ -70,7 +70,7 @@ class Auth extends Controller
         $input = $this->api->body();
         $this->api->refresh_access_token($input['refresh_token'] ?? '');
     }
- 
+
     /** POST /api/logout  { "refresh_token": "..." }  (needs a valid access token) */
     public function logout()
     {
@@ -82,7 +82,7 @@ class Auth extends Controller
         }
         $this->api->respond(['message' => 'Logged out']);
     }
- 
+
     /** GET /api/me */
     public function me()
     {
@@ -95,5 +95,18 @@ class Auth extends Controller
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         $user ? $this->api->respond($user) : $this->api->respond_error('User not found', 404);
     }
+
+    /** GET /api/list  - all users (admin only; never returns passwords) */
+    public function list_users()
+    {
+        $this->api->require_method('GET');
+        $auth = $this->api->require_jwt();
+        if (($auth['role'] ?? '') !== 'admin') {
+            $this->api->respond_error('Forbidden: admin only', 403);
+        }
+        $rows = $this->db->raw(
+            'SELECT id, username, email, role, is_active, created_at FROM users ORDER BY id'
+        )->fetchAll(PDO::FETCH_ASSOC);
+        $this->api->respond(['data' => $rows]);
+    }
 }
- 

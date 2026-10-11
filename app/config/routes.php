@@ -33,7 +33,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
  * @link https://github.com/ronmarasigan/LavaLust
  * @license https://opensource.org/licenses/MIT MIT License
  */
- 
+
 /*
 | -------------------------------------------------------------------
 | URI ROUTING
@@ -43,7 +43,7 @@ defined('PREVENT_DIRECT_ACCESS') OR exit('No direct script access allowed');
 |
 */
 /** @var object $router **/
- 
+
 /*
 | Always send the CORS header for allowed origins, even when something fails
 | (database error, 404, bad secret). Without this the browser hides the real
@@ -55,9 +55,9 @@ if ($cors_origin !== '' && in_array($cors_origin, $cors_allowed, true) && !heade
     header('Access-Control-Allow-Origin: ' . $cors_origin);
     header('Vary: Origin');
 }
- 
+
 $router->get('/', 'Welcome::index');
- 
+
 /*
 | -------------------------------------------------------------------
 | API ROUTES  (JSON only)
@@ -71,11 +71,13 @@ $router->post('/api/logout',   'Auth::logout');
 $router->get('/api/me',        'Auth::me');
 $router->get('/api/profile',   'Auth::me');   // alias used by the LavaLust API Tester
 $router->options('/api/profile', 'Auth::preflight');
+$router->get('/api/list',      'Auth::list_users');   // used by the LavaLust API Tester (admin only)
+$router->options('/api/list',  'Auth::preflight');
 $router->options('/api/login',   'Auth::preflight');
 $router->options('/api/refresh', 'Auth::preflight');
 $router->options('/api/logout',  'Auth::preflight');
 $router->options('/api/me',      'Auth::preflight');
- 
+
 // Products (all protected by JWT)
 $router->get('/api/products',           'Products::index');
 $router->post('/api/products',          'Products::store');
