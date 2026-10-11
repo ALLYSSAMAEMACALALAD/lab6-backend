@@ -71,16 +71,30 @@ class Auth extends Controller
         $this->api->refresh_access_token($input['refresh_token'] ?? '');
     }
 
-    /** POST /api/logout  { "refresh_token": "..." }  (needs a valid access token) */
+    /**
+     * POST /api/logout
+     * Works two ways:
+     *  - body { "refresh_token": "..." }  -> revokes that token (no access token needed, because it may have expired)
+     *  - Authorization: Bearer <access>   -> with no refresh_token in the body, revokes ALL of this user's refresh tokens
+     */
     public function logout()
     {
         $this->api->require_method('POST');
-        $this->api->require_jwt();
         $input = $this->api->body();
-        if (!empty($input['refresh_token'])) {
-            $this->api->revoke_refresh_token($input['refresh_token']);
+        $refresh = trim($input['refresh_token'] ?? '');
+
+        if ($refresh !== '') {
+            $this->api->revoke_refresh_token($refresh);
+            $this->api->respond(['message' => 'Logged out']);
         }
-        $this->api->respond(['message' => 'Logged out']);
+
+        if ($this->api->get_bearer_token()) {
+            $auth = $this->api->require_jwt();
+            $this->db->raw('DELETE FROM refresh_tokens WHERE user_id = ?', [(int) $auth['sub']]);
+            $this->api->respond(['message' => 'Logged out']);
+        }
+
+        $this->api->respond_error('refresh_token is required', 400);
     }
 
     /** GET /api/me */
