@@ -73,6 +73,13 @@ $router->get('/api/profile',   'Auth::me');   // alias used by the LavaLust API 
 $router->options('/api/profile', 'Auth::preflight');
 $router->get('/api/list',      'Auth::list_users');   // used by the LavaLust API Tester (admin only)
 $router->options('/api/list',  'Auth::preflight');
+$router->post('/api/create',         'Auth::create_user');
+$router->put('/api/update/{id}',     'Auth::update_user');
+$router->patch('/api/update/{id}',   'Auth::update_user');
+$router->delete('/api/delete/{id}',  'Auth::delete_user');
+$router->options('/api/create',        'Auth::preflight');
+$router->options('/api/update/{id}',   'Auth::preflight');
+$router->options('/api/delete/{id}',   'Auth::preflight');
 $router->options('/api/login',   'Auth::preflight');
 $router->options('/api/refresh', 'Auth::preflight');
 $router->options('/api/logout',  'Auth::preflight');
