@@ -193,3 +193,10 @@ $config['rate_limit_requests'] = 120;
 |
 */
 $config['rate_limit_seconds'] = 60;
+
+
+$config['allow_origin'] = [
+    'https://api-tester.marasigan.dev',
+    'http://localhost:5173',
+    'https://macalalad-allyssa-frontend.vercel.app',
+];
